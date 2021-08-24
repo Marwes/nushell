@@ -51,76 +51,15 @@ pub fn serve_plugin(plugin: &mut dyn Plugin) {
         };
 
         if let Ok(input) = input {
-            let command = serde_json::from_str::<NuCommand>(&input);
-            match command {
-                Ok(NuCommand::config) => {
-                    send_response(plugin.config());
-                    return;
-                }
-                Ok(NuCommand::begin_filter { params }) => {
-                    send_response(plugin.begin_filter(params));
-                }
-                Ok(NuCommand::filter { params }) => {
-                    send_response(plugin.filter(params));
-                }
-                Ok(NuCommand::end_filter) => {
-                    send_response(plugin.end_filter());
-                    return;
-                }
-
-                Ok(NuCommand::sink { params }) => {
-                    plugin.sink(params.0, params.1);
-                    return;
-                }
-                Ok(NuCommand::quit) => {
-                    plugin.quit();
-                    return;
-                }
-                e => {
-                    send_response(ShellError::untagged_runtime_error(format!(
-                        "Could not handle plugin message: {} {:?}",
-                        input, e
-                    )));
-                    return;
-                }
-            }
+            let _ = handle_command(plugin, &input);
         }
     } else {
         loop {
             let mut input = String::new();
             match io::stdin().read_line(&mut input) {
                 Ok(_) => {
-                    let command = serde_json::from_str::<NuCommand>(&input);
-                    match command {
-                        Ok(NuCommand::config) => {
-                            send_response(plugin.config());
-                            break;
-                        }
-                        Ok(NuCommand::begin_filter { params }) => {
-                            send_response(plugin.begin_filter(params));
-                        }
-                        Ok(NuCommand::filter { params }) => {
-                            send_response(plugin.filter(params));
-                        }
-                        Ok(NuCommand::end_filter) => {
-                            send_response(plugin.end_filter());
-                            break;
-                        }
-                        Ok(NuCommand::sink { params }) => {
-                            plugin.sink(params.0, params.1);
-                            break;
-                        }
-                        Ok(NuCommand::quit) => {
-                            plugin.quit();
-                            break;
-                        }
-                        e => {
-                            send_response(ShellError::untagged_runtime_error(format!(
-                                "Could not handle plugin message: {} {:?}",
-                                input, e
-                            )));
-                            break;
-                        }
+                    if let Err(()) = handle_command(plugin, &input) {
+                        break;
                     }
                 }
                 e => {
@@ -131,6 +70,43 @@ pub fn serve_plugin(plugin: &mut dyn Plugin) {
                     break;
                 }
             }
+        }
+    }
+}
+
+fn handle_command(plugin: &mut dyn Plugin, input: &str) -> Result<(), ()> {
+    let command = serde_json::from_str::<NuCommand>(&input);
+    match command {
+        Ok(NuCommand::config) => {
+            send_response(plugin.config());
+            Err(())
+        }
+        Ok(NuCommand::begin_filter { params }) => {
+            send_response(plugin.begin_filter(params));
+            Ok(())
+        }
+        Ok(NuCommand::filter { params }) => {
+            send_response(plugin.filter(params));
+            Ok(())
+        }
+        Ok(NuCommand::end_filter) => {
+            send_response(plugin.end_filter());
+            Err(())
+        }
+        Ok(NuCommand::sink { params }) => {
+            plugin.sink(params.0, params.1);
+            Err(())
+        }
+        Ok(NuCommand::quit) => {
+            plugin.quit();
+            Err(())
+        }
+        e => {
+            send_response(ShellError::untagged_runtime_error(format!(
+                "Could not handle plugin message: {} {:?}",
+                input, e
+            )));
+            Err(())
         }
     }
 }
